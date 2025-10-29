@@ -309,13 +309,14 @@ public class AzureVMService : IAzureVMService
             var resourceGroupResource = await subscription.GetResourceGroupAsync(resourceGroup, ct);
             var vm = await resourceGroupResource.Value.GetVirtualMachineAsync(vmName, cancellationToken: ct);
 
-            if (vm.Value == null)
+            if (vm.Value?.Id is null)
             {
                 _logger.LogWarning("VM {VmName} not found in resource group {ResourceGroup}", vmName, resourceGroup);
                 return;
             }
 
             await vm.Value.DeallocateAsync(WaitUntil.Completed, cancellationToken: ct);
+            _startTimeTracker.UpdateVMStartTime(vm.Value.Id, VMConstants.DeallocatedState, DateTimeOffset.Now);
             _logger.LogInformation("Successfully deallocated VM {VmName}", vmName);
         }
         catch (Exception ex)

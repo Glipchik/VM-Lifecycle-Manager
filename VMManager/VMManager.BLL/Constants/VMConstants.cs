@@ -2,7 +2,8 @@ namespace VMManager.BLL.Constants;
 
 public static class VMConstants
 {
-    public static readonly string Unknown = "Unknown";
-    public static readonly string Autoshutdown = "Autoshutdown";
-    public static readonly string StoppedState = "stopped";
+    public const string Unknown = "Unknown";
+    public const string Autoshutdown = "Autoshutdown";
+    public const string StoppedState = "stopped";
+    public const string DeallocatedState = "deallocated";
 }
