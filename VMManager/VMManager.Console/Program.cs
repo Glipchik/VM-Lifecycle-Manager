@@ -44,10 +44,10 @@ var host = builder.Build();
 using (var scope = host.Services.CreateScope())
 {
     var csvLogger = scope.ServiceProvider.GetRequiredService<ICSVLogger>();
-    var startTimeTracker = scope.ServiceProvider.GetRequiredService<VMStartTimeTracker>();
+    var startTimeTracker = scope.ServiceProvider.GetRequiredService<IVMStartTimeTracker>();
     
     await csvLogger.InitializeCSVFileAsync(ct);
-    await startTimeTracker.LoadStartTimesAsync();
+    await startTimeTracker.LoadStartTimesAsync(ct);
 }
 
 await host.RunAsync();

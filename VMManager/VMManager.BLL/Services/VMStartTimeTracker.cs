@@ -2,17 +2,18 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using VMManager.BLL.Configuration;
+using VMManager.BLL.Interfaces;
 
 namespace VMManager.BLL.Services;
 
-public class VMStartTimeTracker
+public class VMStartTimeTracker : IVMStartTimeTracker
 {
-    private readonly ILogger<VMStartTimeTracker> _logger;
+    private readonly ILogger<IVMStartTimeTracker> _logger;
     private readonly string _trackingFilePath;
     private readonly Dictionary<string, DateTime> _vmStartTimes = new();
     private readonly SemaphoreSlim _fileLock = new(1, 1);
 
-    public VMStartTimeTracker(ILogger<VMStartTimeTracker> logger, IOptions<VMManagerOptions> options)
+    public VMStartTimeTracker(ILogger<IVMStartTimeTracker> logger, IOptions<VMManagerOptions> options)
     {
         _logger = logger;
         var trackingFilePath = options.Value.TrackingFilePath;
@@ -23,14 +24,14 @@ public class VMStartTimeTracker
         _logger.LogInformation("VM start time tracking file will be created at: {FilePath}", _trackingFilePath);
     }
 
-    public async Task LoadStartTimesAsync()
+    public async Task LoadStartTimesAsync(CancellationToken ct)
     {
-        await _fileLock.WaitAsync();
+        await _fileLock.WaitAsync(ct);
         try
         {
             if (File.Exists(_trackingFilePath))
             {
-                var json = await File.ReadAllTextAsync(_trackingFilePath);
+                var json = await File.ReadAllTextAsync(_trackingFilePath, ct);
                 var data = JsonSerializer.Deserialize<Dictionary<string, DateTime>>(json);
                 if (data != null)
                 {
@@ -53,13 +54,13 @@ public class VMStartTimeTracker
         }
     }
 
-    public async Task SaveStartTimesAsync()
+    public async Task SaveStartTimesAsync(CancellationToken ct)
     {
-        await _fileLock.WaitAsync();
+        await _fileLock.WaitAsync(ct);
         try
         {
             var json = JsonSerializer.Serialize(_vmStartTimes, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(_trackingFilePath, json);
+            await File.WriteAllTextAsync(_trackingFilePath, json, ct);
             _logger.LogDebug("Saved {Count} VM start times to tracking file", _vmStartTimes.Count);
         }
         catch (Exception ex)
@@ -99,7 +100,7 @@ public class VMStartTimeTracker
     public bool ShouldShutdownVM(string vmId, int thresholdHours = 8)
     {
         var startTime = GetVMStartTime(vmId);
-        if (startTime == null) return false;
+        if (startTime is null) return false;
 
         var runningTime = DateTime.UtcNow - startTime.Value;
         return runningTime.TotalHours >= thresholdHours;

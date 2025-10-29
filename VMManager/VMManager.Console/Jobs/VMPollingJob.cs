@@ -8,7 +8,7 @@ namespace VMManager.Console.Jobs;
 public class VMPollingJob(
     IAzureVMService vmService,
     ICSVLogger csvLogger,
-    VMStartTimeTracker startTimeTracker,
+    IVMStartTimeTracker startTimeTracker,
     ILogger<VMPollingJob> logger)
     : IJob
 {
@@ -25,9 +25,9 @@ public class VMPollingJob(
             
             await csvLogger.LogVMDataAsync(vmData, ct);
             
-            // await vmService.ApplyPowerManagementRulesAsync(vmData);
+            await vmService.ApplyPowerManagementRulesAsync(vmData, ct);
             
-            await startTimeTracker.SaveStartTimesAsync();
+            await startTimeTracker.SaveStartTimesAsync(ct);
             
             logger.LogInformation("Completed VM polling cycle at {Timestamp}", DateTime.UtcNow);
         }

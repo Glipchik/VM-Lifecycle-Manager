@@ -15,9 +15,9 @@ public class AzureVMService : IAzureVMService
 {
     private readonly ArmClient _armClient;
     private readonly ILogger<AzureVMService> _logger;
-    private readonly VMStartTimeTracker _startTimeTracker;
+    private readonly IVMStartTimeTracker _startTimeTracker;
 
-    public AzureVMService(ILogger<AzureVMService> logger, VMStartTimeTracker startTimeTracker)
+    public AzureVMService(ILogger<AzureVMService> logger, IVMStartTimeTracker startTimeTracker)
     {
         _logger = logger;
         _startTimeTracker = startTimeTracker;
@@ -269,7 +269,7 @@ public class AzureVMService : IAzureVMService
         return _startTimeTracker.ShouldShutdownVM(vm.VMId, 8);
     }
 
-    public async Task<bool> ShutdownVMAsync(
+    public async Task ShutdownVMAsync(
         string subscriptionId,
         string resourceGroup,
         string vmName,
@@ -281,24 +281,23 @@ public class AzureVMService : IAzureVMService
             var resourceGroupResource = await subscription.GetResourceGroupAsync(resourceGroup, ct);
             var vm = await resourceGroupResource.Value.GetVirtualMachineAsync(vmName, cancellationToken: ct);
 
-            if (vm.Value == null)
+            if (vm.Value?.Id is null)
             {
                 _logger.LogWarning("VM {VmName} not found in resource group {ResourceGroup}", vmName, resourceGroup);
-                return false;
+                return;
             }
 
             await vm.Value.PowerOffAsync(WaitUntil.Completed, cancellationToken: ct);
+            _startTimeTracker.UpdateVMStartTime(vm.Value.Id, VMConstants.StoppedState, DateTimeOffset.Now);
             _logger.LogInformation("Successfully shut down VM {VmName}", vmName);
-            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error shutting down VM {VmName}", vmName);
-            return false;
         }
     }
 
-    public async Task<bool> DeallocateVMAsync(
+    public async Task DeallocateVMAsync(
         string subscriptionId, 
         string resourceGroup, 
         string vmName,
@@ -313,17 +312,15 @@ public class AzureVMService : IAzureVMService
             if (vm.Value == null)
             {
                 _logger.LogWarning("VM {VmName} not found in resource group {ResourceGroup}", vmName, resourceGroup);
-                return false;
+                return;
             }
 
             await vm.Value.DeallocateAsync(WaitUntil.Completed, cancellationToken: ct);
             _logger.LogInformation("Successfully deallocated VM {VmName}", vmName);
-            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deallocating VM {VmName}", vmName);
-            return false;
         }
     }
 }
