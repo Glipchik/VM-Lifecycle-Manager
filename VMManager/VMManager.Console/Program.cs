@@ -19,6 +19,7 @@ builder.Services.AddSingleton(configuration);
 builder.Services.Configure<VMManagerOptions>(builder.Configuration.GetSection(VMManagerOptions.SectionName));
     
 var ct = CancellationToken.None;
+ct.ThrowIfCancellationRequested();
 
 builder.Services.AddBllDependencies();
 
