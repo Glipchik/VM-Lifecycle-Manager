@@ -52,6 +52,11 @@ public class CSVLogger : ICSVLogger
                 await csv.FlushAsync();
             }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initializing CSV file");
+            throw;
+        }
         finally
         {
             _fileLock.Release();
