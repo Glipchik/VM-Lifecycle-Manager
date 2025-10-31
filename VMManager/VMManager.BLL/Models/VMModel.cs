@@ -2,7 +2,7 @@ using Azure.ResourceManager.Compute.Models;
 
 namespace VMManager.BLL.Models;
 
-public class VMData
+public class VMModel
 {
     public DateTime Timestamp { get; set; }
     public string SubscriptionId { get; set; } = string.Empty;

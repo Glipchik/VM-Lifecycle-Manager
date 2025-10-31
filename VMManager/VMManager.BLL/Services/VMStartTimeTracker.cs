@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using VMManager.BLL.Configuration;
+using VMManager.BLL.Constants;
 using VMManager.BLL.Interfaces;
 
 namespace VMManager.BLL.Services;
@@ -78,7 +79,7 @@ public class VMStartTimeTracker : IVMStartTimeTracker
         var stateTime = time?.DateTime;
         var now = DateTime.UtcNow;
         
-        if (powerState.Equals("running", StringComparison.OrdinalIgnoreCase))
+        if (powerState.Equals(VMConstants.RunningState, StringComparison.OrdinalIgnoreCase))
         {
             if (!_vmStartTimes.TryAdd(vmId, stateTime ?? now)) return;
 

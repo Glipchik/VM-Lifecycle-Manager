@@ -7,6 +7,7 @@ using VMManager.BLL.Interfaces;
 using VMManager.BLL.Services;
 using VMManager.BLL.Configuration;
 using VMManager.BLL.DI;
+using VMManager.Console.Constants;
 
 var builder = Host.CreateApplicationBuilder(args);
 IConfiguration configuration = new ConfigurationBuilder()
@@ -25,13 +26,13 @@ builder.Services.AddBllDependencies();
 
 builder.Services.AddQuartz(q =>
 {
-    var jobKey = new JobKey("VMPollingJob");
+    var jobKey = new JobKey(JobConstants.PollingJobKey);
     
     q.AddJob<VMPollingJob>(opts => opts.WithIdentity(jobKey));
     
     q.AddTrigger(opts => opts
         .ForJob(jobKey)
-        .WithIdentity("VMPollingJob-trigger")
+        .WithIdentity(JobConstants.PollingJobTrigger)
         .WithSimpleSchedule(x => x
             .WithInterval(TimeSpan.FromMinutes(5))
             .RepeatForever())

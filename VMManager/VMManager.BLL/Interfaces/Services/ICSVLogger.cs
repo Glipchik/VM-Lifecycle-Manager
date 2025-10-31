@@ -4,6 +4,6 @@ namespace VMManager.BLL.Interfaces;
 
 public interface ICSVLogger
 {
-    Task LogVMDataAsync(List<VMData> vmData, CancellationToken ct);
+    Task LogVMDataAsync(List<VMModel> vmData, CancellationToken ct);
     Task InitializeCSVFileAsync(CancellationToken ct);
 }

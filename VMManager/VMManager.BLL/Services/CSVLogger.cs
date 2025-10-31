@@ -6,6 +6,8 @@ using VMManager.BLL.Interfaces;
 using VMManager.BLL.Models;
 using VMManager.BLL.Configuration;
 using System.Globalization;
+using VMManager.BLL.Constants;
+using VMManager.BLL.Mappers;
 
 namespace VMManager.BLL.Services;
 
@@ -37,17 +39,9 @@ public class CSVLogger : ICSVLogger
                 await using var writer = new StreamWriter(_csvFilePath);
                 await using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
                 
-                csv.WriteField("Timestamp");
-                csv.WriteField("Subscription ID");
-                csv.WriteField("Resource Group");
-                csv.WriteField("Computer Name");
-                csv.WriteField("Power State");
-                csv.WriteField("Has Autoshutdown Tag");
-                csv.WriteField("Last Start Time");
-                csv.WriteField("VM ID");
-                csv.WriteField("Location");
-                csv.WriteField("VM Size");
-                csv.WriteField("Tags");
+                csv.Context.RegisterClassMap<VMModelCSVMapper>();
+                csv.WriteHeader<VMModel>();
+                
                 await csv.NextRecordAsync();
                 await csv.FlushAsync();
             }
@@ -63,7 +57,7 @@ public class CSVLogger : ICSVLogger
         }
     }
 
-    public async Task LogVMDataAsync(List<VMData> vmData, CancellationToken ct)
+    public async Task LogVMDataAsync(List<VMModel> vmData, CancellationToken ct)
     {
         if (vmData.Count == 0)
         {
@@ -83,6 +77,8 @@ public class CSVLogger : ICSVLogger
 
             await using var writer = new StreamWriter(_csvFilePath, append: true);
             await using var csv = new CsvWriter(writer, config);
+            
+            csv.Context.RegisterClassMap<VMModelCSVMapper>();
 
             foreach (var vm in vmData)
             {
@@ -103,15 +99,15 @@ public class CSVLogger : ICSVLogger
         }
     }
 
-    private static async Task WriteVMDataToCSVAsync(CsvWriter csv, VMData vm)
+    private static async Task WriteVMDataToCSVAsync(CsvWriter csv, VMModel vm)
     {
-        csv.WriteField(vm.Timestamp.ToString("yyyy-MM-dd HH:mm:ss UTC"));
+        csv.WriteField(vm.Timestamp.ToString(CSVConstants.TimestampFormat));
         csv.WriteField(vm.SubscriptionId);
         csv.WriteField(vm.ResourceGroup);
         csv.WriteField(vm.ComputerName);
         csv.WriteField(vm.PowerState);
-        csv.WriteField(vm.HasAutoshutdownTag ? "Yes" : "No");
-        csv.WriteField(vm.LastStartTime?.ToString("yyyy-MM-dd HH:mm:ss UTC") ?? "Unknown");
+        csv.WriteField(vm.HasAutoshutdownTag ? VMConstants.Yes : VMConstants.No);
+        csv.WriteField(vm.LastStartTime?.ToString(CSVConstants.TimestampFormat) ?? VMConstants.Unknown);
         csv.WriteField(vm.VMId);
         csv.WriteField(vm.Location);
         csv.WriteField(vm.VMSize);

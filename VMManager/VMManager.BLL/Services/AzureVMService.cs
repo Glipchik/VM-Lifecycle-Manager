@@ -26,9 +26,9 @@ public class AzureVMService : IAzureVMService
         _armClient = new ArmClient(credential);
     }
 
-    public async Task<List<VMData>> CollectVMDataAsync(CancellationToken ct)
+    public async Task<List<VMModel>> CollectVMDataAsync(CancellationToken ct)
     {
-        var allVmData = new List<VMData>();
+        var allVmData = new List<VMModel>();
         var timestamp = DateTime.UtcNow;
 
         try
@@ -75,19 +75,19 @@ public class AzureVMService : IAzureVMService
         return subscriptions;
     }
 
-    private async Task<List<VMData>> CollectVMDataFromSubscriptionAsync(
+    private async Task<List<VMModel>> CollectVMDataFromSubscriptionAsync(
         SubscriptionResource subscription, 
         DateTime timestamp,
         CancellationToken ct)
     {
-        var vmDataList = new List<VMData>();
+        var vmDataList = new List<VMModel>();
 
         try
         {
             _logger.LogDebug("Collecting VM data from subscription: {SubscriptionId}", subscription.Id);
 
             var resourceGroups = subscription.GetResourceGroups();
-            List<Task<List<VMData>>> tasks = [];
+            List<Task<List<VMModel>>> tasks = [];
             
             await foreach (var resourceGroup in resourceGroups)
             {
@@ -112,13 +112,13 @@ public class AzureVMService : IAzureVMService
         return vmDataList;
     }
 
-    private async Task<List<VMData>> CollectVMDataFromResourceGroupAsync(
+    private async Task<List<VMModel>> CollectVMDataFromResourceGroupAsync(
         SubscriptionResource subscription, 
         ResourceGroupResource resourceGroup, 
         DateTime timestamp,
         CancellationToken ct)
     {
-        var vmDataList = new List<VMData>();
+        var vmDataList = new List<VMModel>();
 
         try
         {
@@ -147,14 +147,14 @@ public class AzureVMService : IAzureVMService
         return vmDataList;
     }
 
-    private async Task<VMData> CreateVMDataAsync(
+    private async Task<VMModel> CreateVMDataAsync(
         VirtualMachineResource vm, 
         SubscriptionResource subscription, 
         ResourceGroupResource resourceGroup, 
         DateTime timestamp,
         CancellationToken ct)
     {
-        var vmData = new VMData
+        var vmData = new VMModel
         {
             Timestamp = timestamp,
             SubscriptionId = subscription.Id.SubscriptionId 
@@ -173,9 +173,9 @@ public class AzureVMService : IAzureVMService
         {
             var data = await vm.InstanceViewAsync(ct);
             var vmPowerStateAndTime = GetPowerStateAndTimeFromInstanceView(data);
-            vmData.PowerState = vmPowerStateAndTime.Item1;
+            vmData.PowerState = vmPowerStateAndTime.PowerState;
             
-            _startTimeTracker.UpdateVMStartTime(vmData.VMId, vmData.PowerState, vmPowerStateAndTime.Item2);
+            _startTimeTracker.UpdateVMStartTime(vmData.VMId, vmData.PowerState, vmPowerStateAndTime.PowerStateTime);
             
             vmData.LastStartTime = _startTimeTracker.GetVMStartTime(vmData.VMId);
         }
@@ -188,25 +188,32 @@ public class AzureVMService : IAzureVMService
         return vmData;
     }
 
-    private static (string, DateTimeOffset?) GetPowerStateAndTimeFromInstanceView(
+    private static PowerStateModel GetPowerStateAndTimeFromInstanceView(
         VirtualMachineInstanceView instanceView)
     {
         var statuses = instanceView.Statuses;
-        if (statuses == null) return (VMConstants.Unknown, null);
+        if (statuses == null) return GetPowerStateModel(VMConstants.Unknown, null);
 
         foreach (var status in statuses)
         {
-            if (status.Code?.StartsWith("PowerState/") == true)
+            if (status.Code?.StartsWith(VMConstants.PowerState) == true)
             {
-                return (status.Code.Replace("PowerState/", ""), status.Time);
+                return GetPowerStateModel(status.Code.Replace(VMConstants.PowerState, string.Empty), status.Time);
             }
         }
 
-        return (VMConstants.Unknown, null);
+        return GetPowerStateModel(VMConstants.Unknown, null);
     }
 
+    private static PowerStateModel GetPowerStateModel(string powerState, DateTimeOffset? powerStateTime)
+        => new()
+        {
+            PowerState = powerState,
+            PowerStateTime = powerStateTime
+        };
+
     public async Task ApplyPowerManagementRulesAsync(
-        List<VMData> vmData,
+        List<VMModel> vmData,
         CancellationToken ct)
     {
         var autoshutdownVMs = vmData.Where(vm => vm.HasAutoshutdownTag).ToList();
@@ -226,14 +233,14 @@ public class AzureVMService : IAzureVMService
     }
 
     private async Task ApplyPowerManagementRuleToVMAsync(
-        VMData vm,
+        VMModel vm,
         CancellationToken ct)
     {
         try
         {
             switch (vm.PowerState.ToLowerInvariant())
             {
-                case "running":
+                case VMConstants.RunningState:
                     if (ShouldShutdownVM(vm))
                     {
                         _logger.LogInformation("Shutting down VM {VmName} - running for more than 8 hours", 
@@ -242,13 +249,13 @@ public class AzureVMService : IAzureVMService
                     }
                     break;
 
-                case "stopped":
+                case VMConstants.StoppedState:
                     _logger.LogInformation("Deallocating VM {VmName} - Windows is shutdown", 
                         vm.ComputerName);
                     await DeallocateVMAsync(vm.SubscriptionId, vm.ResourceGroup, vm.ComputerName, ct);
                     break;
 
-                case "deallocated":
+                case VMConstants.DeallocatedState:
                     _logger.LogDebug("VM {VmName} is already deallocated", vm.ComputerName);
                     break;
 
@@ -264,7 +271,7 @@ public class AzureVMService : IAzureVMService
         }
     }
 
-    private bool ShouldShutdownVM(VMData vm)
+    private bool ShouldShutdownVM(VMModel vm)
     {
         return _startTimeTracker.ShouldShutdownVM(vm.VMId, 8);
     }
